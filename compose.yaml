@@ -1,0 +1,19 @@
+services:
+  tablosync:
+    build: .
+    container_name: tablosync
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${TABLOSYNC_PORT:-5004}:${TABLOSYNC_PORT:-5004}"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('TABLOSYNC_PORT', '5004') + '/healthz', timeout=3)
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

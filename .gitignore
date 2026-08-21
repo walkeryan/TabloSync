@@ -1,0 +1,10 @@
+.env
+.playwright-cli/
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.egg-info/
+*.py[cod]
+build/
+dist/
