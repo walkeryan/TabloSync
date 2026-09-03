@@ -165,8 +165,8 @@ class FoxClient:
                 "device_type": "web",
                 "app_version": "0.2.0",
                 "mvpd_id": FOX_XFINITY_ID,
-                "first_screen": "false",
-                "redirect_url": "https://www.foxsports.com/provider/register",
+                "first_screen": "true",
+                "redirect_url": ("https://www.foxsports.com/provider/register?mvpd_id=Comcast_SSO"),
                 "requestor": FOX_REQUESTOR,
                 "model": "TabloSync",
                 "osName": "Linux",
@@ -178,16 +178,16 @@ class FoxClient:
                 headers=self._identity_headers(),
             )
             payload = self._json_response(response, "FOX could not start device authorization")
-            state.pending_code = str(payload.get("code", ""))
-            state.activation_url = str(
-                payload.get("activationURL", "https://activate.fox.com/activate")
-            )
-            activation = urlsplit(state.activation_url)
-            if activation.scheme != "https" or activation.hostname != "activate.fox.com":
-                raise FoxError("FOX returned an unexpected activation site")
+            # The legacy second-screen URL now redirects to FOX One, whose codes are
+            # not these Adobe provider codes. Use the current web client's direct flow.
+            state.pending_code = ""
+            state.activation_url = str(payload.get("authenticateURL", ""))
+            if not self._is_provider_login_url(state.activation_url):
+                state.activation_url = ""
+                raise FoxError("FOX returned an unexpected provider sign-in site")
             state.pending_expires = int(payload.get("expires", 0))
-            if not state.pending_code or state.pending_expires <= self._now_ms():
-                raise FoxError("FOX returned an invalid activation code")
+            if state.pending_expires <= self._now_ms():
+                raise FoxError("FOX returned an expired provider sign-in link")
             self._save_state()
             return self._activation_status_locked()
 
@@ -452,7 +452,22 @@ class FoxClient:
 
     def _pending_is_current(self) -> bool:
         state = self._require_state()
-        return bool(state.pending_code) and state.pending_expires > self._now_ms()
+        return (
+            self._is_provider_login_url(state.activation_url)
+            and state.pending_expires > self._now_ms()
+        )
+
+    @staticmethod
+    def _is_provider_login_url(url: str) -> bool:
+        try:
+            parsed = urlsplit(url)
+            return (
+                parsed.scheme == "https"
+                and parsed.netloc == "api.auth.adobe.com"
+                and parsed.path.startswith(f"/api/v2/authenticate/{FOX_REQUESTOR}/")
+            )
+        except ValueError:
+            return False
 
     def _load_state(self) -> FoxAuthState | None:
         try:

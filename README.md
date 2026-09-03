@@ -99,9 +99,10 @@ integration with the full Xfinity Stream lineup.
    docker compose up -d --build tablosync-tve
    ```
 
-3. Open `http://SERVER_LAN_IP:5005/auth/fox` on your trusted LAN and start activation.
-   Follow the official FOX activation link, enter the displayed code, select Xfinity,
-   and sign in there. TabloSync never receives your Xfinity password.
+3. Open `http://SERVER_LAN_IP:5005/auth/fox` on your trusted LAN and click **Connect Xfinity**.
+   Click **Continue to Xfinity** to follow FOX's Adobe TV Everywhere sign-in link and sign in
+   on Xfinity's site. No activation code is needed. TabloSync never receives your Xfinity
+   password. Do not enter legacy provider codes on FOX One's activation page.
 4. Keep the activation page open until authorization is confirmed. This confirms provider
    login, **not** BTN entitlement or successful playback; test a live stream next.
 5. Add `SERVER_LAN_IP:5005` manually in Plex's Live TV & DVR settings as a cable tuner.

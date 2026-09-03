@@ -74,16 +74,18 @@ def _auth_page(status: ActivationStatus) -> str:
         action = ""
     elif status.authorization == "pending":
         url = html.escape(status.activation_url, quote=True)
-        code = html.escape(status.code)
         detail = (
-            f'Open <a href="{url}" target="_blank" rel="noopener">{url}</a> and enter '
-            f'<strong class="code">{code}</strong>. This page checks automatically.'
+            "Continue to Xfinity in a new tab and sign in with your TV subscription. "
+            "No activation code is needed. Keep this page open; it checks automatically."
         )
-        action = ""
+        action = (
+            f'<a class="button" href="{url}" target="_blank" rel="noopener noreferrer">'
+            "Continue to Xfinity</a>"
+        )
     else:
         detail = "Authorize FOX Sports with the Xfinity subscription that includes BTN."
         action = (
-            '<form method="post" action="/auth/fox/start"><button>Start activation</button></form>'
+            '<form method="post" action="/auth/fox/start"><button>Connect Xfinity</button></form>'
         )
 
     refresh = '<meta http-equiv="refresh" content="5">' if not status.authorized else ""
@@ -99,10 +101,10 @@ def _auth_page(status: ActivationStatus) -> str:
       padding: 0 24px; color: #172033; background: #f5f7fb; }}
     main {{ background: white; padding: 32px; border-radius: 16px;
       box-shadow: 0 12px 36px #17203318; }}
-    h1 {{ margin-top: 0; }} .code {{ display: inline-block; letter-spacing: .14em;
-      font-size: 1.35em; padding: 4px 9px; background: #eef2ff; border-radius: 6px; }}
-    button {{ font: inherit; padding: 10px 16px; border: 0; border-radius: 8px;
-      color: white; background: #1d4ed8; cursor: pointer; }}
+    h1 {{ margin-top: 0; }}
+    button, .button {{ font: inherit; padding: 10px 16px; border: 0; border-radius: 8px;
+      color: white; background: #1d4ed8; cursor: pointer; display: inline-block;
+      text-decoration: none; }}
     small {{ color: #667085; }}
   </style>
 </head>

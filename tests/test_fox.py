@@ -49,11 +49,12 @@ def test_xfinity_device_activation_is_persisted(tmp_path) -> None:
         if request.url.path == "/account/login/v3":
             return httpx.Response(200, json=auth_payload(), request=request)
         if request.url.path == "/v2.0/adoberegcode":
+            assert request.url.params["first_screen"] == "true"
+            assert request.url.params["mvpd_id"] == "Comcast_SSO"
             return httpx.Response(
                 200,
                 json={
-                    "code": "ABCD123",
-                    "activationURL": "https://activate.fox.com/activate",
+                    "authenticateURL": "https://api.auth.adobe.com/api/v2/authenticate/fbc-fox/ABC123",
                     "expires": int((time.time() + 600) * 1000),
                 },
                 request=request,
@@ -69,7 +70,9 @@ def test_xfinity_device_activation_is_persisted(tmp_path) -> None:
         await client.initialize()
         pending = await client.start_activation()
         assert pending.authorization == "pending"
-        assert pending.code == "ABCD123"
+        assert pending.code == ""
+        assert pending.activation_url.startswith("https://api.auth.adobe.com/")
+        assert (await client.start_activation()).activation_url == pending.activation_url
         complete = await client.activation_status(poll=True)
         assert complete.authorized
         assert complete.authorization == "authorized"
@@ -217,7 +220,10 @@ def test_oauth_refresh_normalizes_tokens_and_provider_claims(tmp_path, provider)
 def test_pending_activation_404_and_network_errors_do_not_leak_tokens(tmp_path) -> None:
     state_file = tmp_path / "fox-auth.json"
     state = saved_state(provider="")
-    state.update(pending_code="CODE123", pending_expires=int((time.time() + 600) * 1000))
+    state.update(
+        activation_url="https://api.auth.adobe.com/api/v2/authenticate/fbc-fox/CODE123",
+        pending_expires=int((time.time() + 600) * 1000),
+    )
     state_file.write_text(json.dumps(state))
     calls = 0
 
@@ -280,3 +286,49 @@ def test_invalid_saved_auth_state_is_rejected(tmp_path) -> None:
         await client.close()
 
     asyncio.run(exercise())
+
+
+def test_legacy_second_screen_code_is_not_reused(tmp_path) -> None:
+    state_file = tmp_path / "fox-auth.json"
+    state = saved_state(provider="")
+    state.update(
+        pending_code="OLDCODE",
+        activation_url="https://activate.fox.com/activate",
+        pending_expires=int((time.time() + 600) * 1000),
+    )
+    state_file.write_text(json.dumps(state))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v2.0/adoberegcode"
+        return httpx.Response(
+            200,
+            json={
+                "authenticateURL": "https://api.auth.adobe.com/api/v2/authenticate/fbc-fox/NEWLINK",
+                "expires": int((time.time() + 600) * 1000),
+            },
+        )
+
+    async def exercise() -> None:
+        client = FoxClient(state_file, transport=httpx.MockTransport(handler))
+        await client.initialize()
+        assert (await client.activation_status()).authorization == "required"
+        status = await client.start_activation()
+        assert status.code == ""
+        assert status.activation_url.endswith("/NEWLINK")
+        await client.close()
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://activate.fox.com/activate",
+        "http://api.auth.adobe.com/api/v2/authenticate/fbc-fox/CODE",
+        "https://api.auth.adobe.com.evil.example/api/v2/authenticate/fbc-fox/CODE",
+        "https://evil.example/api/v2/authenticate/fbc-fox/CODE",
+        "javascript:alert(1)",
+    ],
+)
+def test_unexpected_provider_login_urls_are_rejected(url) -> None:
+    assert not FoxClient._is_provider_login_url(url)

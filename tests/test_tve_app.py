@@ -120,3 +120,23 @@ def test_activation_ui_can_be_disabled() -> None:
         assert client.get("/auth/fox/status").status_code == 404
         assert client.post("/auth/fox/start").status_code == 404
         assert client.get("/lineup.json").status_code == 200
+
+
+def test_pending_page_uses_direct_xfinity_login_not_code_entry() -> None:
+    class PendingBridge(FakeTVEBridge):
+        async def activation_status(self, *, poll: bool = False) -> ActivationStatus:
+            return ActivationStatus(
+                False,
+                "pending",
+                "",
+                "",
+                "https://api.auth.adobe.com/api/v2/authenticate/fbc-fox/CODE",
+                9999999999999,
+            )
+
+    with TestClient(create_tve_app(settings(), PendingBridge(), FakeTVEStreams())) as client:
+        page = client.get("/auth/fox")
+        assert "Continue to Xfinity" in page.text
+        assert "No activation code is needed" in page.text
+        assert "https://activate.fox.com" not in page.text
+        assert 'rel="noopener noreferrer"' in page.text
