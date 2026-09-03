@@ -43,7 +43,7 @@ class StreamManager:
         """Reserve a tuner and start FFmpeg before the HTTP response is committed."""
         async with self._lock:
             if self.active_count >= self.bridge.tuner_count:
-                raise NoTunerAvailable("All Tablo tuners are currently in use")
+                raise NoTunerAvailable("All tuner slots are currently in use")
             self._starting += 1
 
         try:
@@ -60,7 +60,7 @@ class StreamManager:
             raise
 
         logger.info(
-            "Started channel %s (%d/%d tuners active)",
+            "Started channel %s (%d/%d tuner slots active)",
             identifier,
             self.active_count,
             self.bridge.tuner_count,
@@ -122,7 +122,7 @@ class StreamManager:
                 process.kill()
                 await asyncio.to_thread(process.wait)
         logger.info(
-            "Stopped channel %s (%d/%d tuners active)",
+            "Stopped channel %s (%d/%d tuner slots active)",
             active.identifier,
             self.active_count,
             self.bridge.tuner_count,

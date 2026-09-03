@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from tablosync.config import ConfigurationError, Settings
+from tablosync.tve_config import TVESettings
 
 
 def test_loads_password_from_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -32,3 +33,17 @@ def test_rejects_invalid_advertise_url(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ConfigurationError, match="http"):
         Settings.from_env()
+
+
+def test_tve_settings_do_not_require_account_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TABLO_EMAIL", raising=False)
+    monkeypatch.delenv("TABLO_PASSWORD", raising=False)
+    settings = TVESettings.from_env()
+    assert settings.port == 5005
+    assert settings.btn_guide_number == "6100"
+
+
+def test_tve_guide_number_must_be_numeric(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TABLOSYNC_TVE_BTN_GUIDE_NUMBER", "BTN")
+    with pytest.raises(ConfigurationError, match="GUIDE_NUMBER"):
+        TVESettings.from_env()

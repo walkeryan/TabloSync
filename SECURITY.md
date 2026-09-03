@@ -19,3 +19,13 @@ home.
 
 Prefer `TABLO_PASSWORD_FILE` over a plain environment variable when the deployment platform
 supports secrets. Never publish a real `.env` file.
+
+The optional TV Everywhere service has the same LAN-only boundary on port 5005. Its FOX
+activation endpoints are intentionally local and unauthenticated. Disable them with
+`TABLOSYNC_TVE_AUTH_UI=false` after setup if desired; re-enable them when reauthorization
+is needed. Do not expose the activation page through a public reverse proxy.
+
+The FOX token file and `tablosync-tve-data` Docker volume contain account-access tokens.
+Keep them out of Git, diagnostic bundles, screenshots, and public backups. Never publish
+signed playback URLs or FOX API request URLs: some include credentials in their paths.
+Xfinity passwords should only be entered on the provider's own sign-in page.

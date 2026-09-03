@@ -4,26 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tablosync"
-version = "0.1.0"
-description = "Expose a Tablo Gen 4 as a Plex-compatible network tuner"
+version = "0.2.0"
+description = "Expose Tablo and authorized TV Everywhere streams as Plex-compatible tuners"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
   "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
   "tablo-api==0.1.2",
   "uvicorn[standard]>=0.35,<1",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28,<1",
   "pytest>=8.4,<9",
   "ruff>=0.12,<1",
 ]
 
 [project.scripts]
 tablosync = "tablosync.__main__:main"
+tablosync-tve = "tablosync.tve:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir .
 ENV PYTHONUNBUFFERED=1 \
     TABLOSYNC_PORT=5004
 
-EXPOSE 5004
+EXPOSE 5004 5005
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('TABLOSYNC_PORT', '5004') + '/healthz', timeout=3)"

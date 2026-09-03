@@ -4,5 +4,13 @@
 .pytest_cache
 .ruff_cache
 .venv
+.playwright-cli
+.runtime
+fox-auth.json
+fox-auth.json.tmp
+.fox-auth-*
+build
+dist
+*.egg-info
 __pycache__
 *.py[cod]

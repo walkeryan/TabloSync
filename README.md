@@ -18,9 +18,9 @@ Tablo antenna + tuner  --local HLS-->  TabloSync  --MPEG-TS-->  Plex Media Serve
 Plex remains the DVR, guide UI, and remote-access layer. TabloSync does not record or expose
 the Tablo directly to the internet.
 
-This replaces Channels DVR only as the **Tablo-to-Plex tuner bridge**. It is not intended to
-reproduce Channels features such as TV Everywhere sources, virtual channels, commercial
-detection, or its own DVR clients.
+This replaces Channels DVR as a **Tablo-to-Plex tuner bridge**. An optional, experimental
+TV Everywhere service also exposes Big Ten Network through FOX with your Xfinity subscription.
+It does not reproduce Channels' virtual channels, commercial detection, or DVR clients.
 
 ## Scope
 
@@ -85,6 +85,57 @@ front of the service), set `TABLOSYNC_ADVERTISE_URL=http://SERVER_LAN_IP:5004`.
 Watching OTA channels live does not require TabloSync to be internet-facing. For away-from-home
 viewing, enable and verify Plex Remote Access. Plex DVR recording requires Plex Pass.
 
+## Big Ten Network with Xfinity (experimental)
+
+`tablosync-tve` is a separate one-tuner **Cable** device on port **5005**. It does not change
+the Tablo antenna device on port 5004 and does not need Tablo account credentials. Your
+Xfinity TV package must include BTN and permit FOX TV Everywhere access. This is not an
+integration with the full Xfinity Stream lineup.
+
+1. Copy `.env.example` to `.env` if it does not already exist; TVE uses only its own settings.
+2. Start only the optional TVE service:
+
+   ```bash
+   docker compose up -d --build tablosync-tve
+   ```
+
+3. Open `http://SERVER_LAN_IP:5005/auth/fox` on your trusted LAN and start activation.
+   Follow the official FOX activation link, enter the displayed code, select Xfinity,
+   and sign in there. TabloSync never receives your Xfinity password.
+4. Keep the activation page open until authorization is confirmed. This confirms provider
+   login, **not** BTN entitlement or successful playback; test a live stream next.
+5. Add `SERVER_LAN_IP:5005` manually in Plex's Live TV & DVR settings as a cable tuner.
+   Select the appropriate cable guide and map virtual channel **6100 — Big Ten Network**
+   to BTN. The virtual number is not your local Xfinity channel number. Plex supplies the
+   guide, and support for multiple guide lineups depends on your Plex setup/version.
+6. Verify local playback, remote playback through Plex, and a short recording before relying
+   on it for games. Leave your existing antenna tuner and guide intact.
+
+FOX uses an undocumented, changeable API. Only standard HLS (including ordinary AES-128
+segment encryption) is supported. Widevine, PlayReady, FairPlay, and other protected streams
+are not decrypted. A FOX free preview is never treated as subscription authorization.
+Availability, blackouts, session limits, and expired provider authorization remain FOX/Xfinity's
+decisions. If reauthorization is required, return to the activation page.
+
+Authorization tokens are stored with owner-only permissions in the `tablosync-tve-data`
+Docker volume. Treat that volume as a secret. Keep port 5005 on your trusted LAN; neither
+the tuner endpoints nor the activation page have a separate login. Never publish them
+through a public proxy. Use Plex Remote Access for away-from-home viewing.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TABLOSYNC_TVE_PORT` | `5005` | HTTP port (host port under Compose) |
+| `TABLOSYNC_TVE_FRIENDLY_NAME` | `TabloSync TV Everywhere` | Name Plex sees |
+| `TABLOSYNC_TVE_ADVERTISE_URL` | request URL | Base URL placed in the Plex lineup |
+| `TABLOSYNC_TVE_STATE_FILE` | `/data/fox-auth.json` | Private token file; Compose mounts `/data` |
+| `TABLOSYNC_TVE_BTN_GUIDE_NUMBER` | `6100` | Virtual BTN channel number |
+| `TABLOSYNC_TVE_TUNER_COUNT` | `1` | Concurrent local stream slots; does not override provider limits |
+| `TABLOSYNC_TVE_AUTH_UI` | `true` | Set `false` after setup to disable activation endpoints |
+| `TABLOSYNC_TVE_FFMPEG_PATH` | `ffmpeg` | FFmpeg executable path |
+
+For non-Docker deployment, install the package and run `tablosync-tve` with a writable
+`TABLOSYNC_TVE_STATE_FILE` path. No `TABLO_EMAIL` or `TABLO_PASSWORD` is needed.
+
 ## Migrate safely from Channels
 
 1. Run TabloSync beside Channels on port 5004.
@@ -140,5 +191,5 @@ python3.12 -m venv .venv
 ```
 
 This is an unofficial personal interoperability project and is not affiliated with Plex,
-Tablo/Nuvyyo, or SiliconDust. Use it only with devices and broadcasts you are authorized to
-access.
+Tablo/Nuvyyo, SiliconDust, FOX, BTN, or Xfinity. Use it only with devices and streams you are
+authorized to access and in accordance with your provider's terms.
