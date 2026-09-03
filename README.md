@@ -112,6 +112,10 @@ integration with the full Xfinity Stream lineup.
 6. Verify local playback, remote playback through Plex, and a short recording before relying
    on it for games. Leave your existing antenna tuner and guide intact.
 
+The TVE reader uses PyAV/FFmpeg libraries to remux each HLS segment into stable audio/video
+tracks. This handles FOX changing track IDs between advertisements and programmes, without
+re-encoding the video or removing advertisements. The Tablo reader continues to use FFmpeg CLI.
+
 FOX uses an undocumented, changeable API. Only standard HLS (including ordinary AES-128
 segment encryption) is supported. Widevine, PlayReady, FairPlay, and other protected streams
 are not decrypted. A FOX free preview is never treated as subscription authorization.
@@ -132,7 +136,7 @@ through a public proxy. Use Plex Remote Access for away-from-home viewing.
 | `TABLOSYNC_TVE_BTN_GUIDE_NUMBER` | `6100` | Virtual BTN channel number |
 | `TABLOSYNC_TVE_TUNER_COUNT` | `1` | Concurrent local stream slots; does not override provider limits |
 | `TABLOSYNC_TVE_AUTH_UI` | `true` | Set `false` after setup to disable activation endpoints |
-| `TABLOSYNC_TVE_FFMPEG_PATH` | `ffmpeg` | FFmpeg executable path |
+| `TABLOSYNC_TVE_FFMPEG_PATH` | `ffmpeg` | Legacy setting; the TVE reader now uses bundled PyAV libraries |
 
 For non-Docker deployment, install the package and run `tablosync-tve` with a writable
 `TABLOSYNC_TVE_STATE_FILE` path. No `TABLO_EMAIL` or `TABLO_PASSWORD` is needed.

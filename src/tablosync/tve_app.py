@@ -22,8 +22,9 @@ from .fox import (
     FoxProtectedStream,
     TunerChannel,
 )
-from .streams import NoTunerAvailable, StreamManager
+from .streams import NoTunerAvailable
 from .tve_config import TVESettings
+from .tve_remux import TVEStreamManager
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ def create_tve_app(
     streams: StreamContract | None = None,
 ) -> FastAPI:
     real_bridge = bridge or FoxBridge(settings)
-    real_streams = streams or StreamManager(real_bridge, settings)  # type: ignore[arg-type]
+    real_streams = streams or TVEStreamManager(real_bridge, settings)  # type: ignore[arg-type]
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):

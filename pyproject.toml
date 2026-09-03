@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
+  "av==18.1.0",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "tablo-api==0.1.2",
