@@ -34,6 +34,7 @@ class StreamManager:
         self._active: dict[str, ActiveStream] = {}
         self._starting = 0
         self._lock = asyncio.Lock()
+        self._cleanup_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def active_count(self) -> int:
@@ -43,7 +44,7 @@ class StreamManager:
         """Reserve a tuner and start FFmpeg before the HTTP response is committed."""
         async with self._lock:
             if self.active_count >= self.bridge.tuner_count:
-                raise NoTunerAvailable("All Tablo tuners are currently in use")
+                raise NoTunerAvailable("All tuner slots are currently in use")
             self._starting += 1
 
         try:
@@ -54,13 +55,13 @@ class StreamManager:
             async with self._lock:
                 self._starting -= 1
                 self._active[stream_id] = active
-        except Exception:
+        except BaseException:
             async with self._lock:
                 self._starting -= 1
             raise
 
         logger.info(
-            "Started channel %s (%d/%d tuners active)",
+            "Started channel %s (%d/%d tuner slots active)",
             identifier,
             self.active_count,
             self.bridge.tuner_count,
@@ -78,7 +79,12 @@ class StreamManager:
                     break
                 yield chunk
         finally:
-            await self._stop(stream_id)
+            # HTTP disconnects cancel the response scope. Cleanup must survive
+            # that cancellation so a blocked FFmpeg process is still killed.
+            cleanup = asyncio.create_task(self._stop(stream_id))
+            self._cleanup_tasks.add(cleanup)
+            cleanup.add_done_callback(self._cleanup_tasks.discard)
+            await asyncio.shield(cleanup)
 
     def _start_ffmpeg(self, playlist_url: str) -> subprocess.Popen[bytes]:
         command = [
@@ -122,7 +128,7 @@ class StreamManager:
                 process.kill()
                 await asyncio.to_thread(process.wait)
         logger.info(
-            "Stopped channel %s (%d/%d tuners active)",
+            "Stopped channel %s (%d/%d tuner slots active)",
             active.identifier,
             self.active_count,
             self.bridge.tuner_count,
@@ -132,3 +138,5 @@ class StreamManager:
         async with self._lock:
             stream_ids = list(self._active)
         await asyncio.gather(*(self._stop(stream_id) for stream_id in stream_ids))
+        if self._cleanup_tasks:
+            await asyncio.gather(*self._cleanup_tasks)
