@@ -85,12 +85,13 @@ front of the service), set `TABLOSYNC_ADVERTISE_URL=http://SERVER_LAN_IP:5004`.
 Watching OTA channels live does not require TabloSync to be internet-facing. For away-from-home
 viewing, enable and verify Plex Remote Access. Plex DVR recording requires Plex Pass.
 
-## Big Ten Network with Xfinity (experimental)
+## FOX TV Everywhere with Xfinity (experimental)
 
 `tablosync-tve` is a separate one-tuner **Cable** device on port **5005**. It does not change
-the Tablo antenna device on port 5004 and does not need Tablo account credentials. Your
-Xfinity TV package must include BTN and permit FOX TV Everywhere access. This is not an
-integration with the full Xfinity Stream lineup.
+the Tablo antenna device on port 5004 and does not need Tablo account credentials. It exposes
+Big Ten Network by default and can optionally add a configured local FOX affiliate. Your Xfinity
+TV package must permit FOX TV Everywhere access. This is not an integration with the full
+Xfinity Stream lineup.
 
 1. Copy `.env.example` to `.env` if it does not already exist; TVE uses only its own settings.
 2. Start only the optional TVE service:
@@ -134,6 +135,9 @@ through a public proxy. Use Plex Remote Access for away-from-home viewing.
 | `TABLOSYNC_TVE_ADVERTISE_URL` | request URL | Base URL placed in the Plex lineup |
 | `TABLOSYNC_TVE_STATE_FILE` | `/data/fox-auth.json` | Private token file; Compose mounts `/data` |
 | `TABLOSYNC_TVE_BTN_GUIDE_NUMBER` | `6100` | Virtual BTN channel number |
+| `TABLOSYNC_TVE_FOX_CALL_SIGN` | unset | Optional FOX affiliate callsign, such as `WYFX-LD` |
+| `TABLOSYNC_TVE_FOX_GUIDE_NUMBER` | `6101` | Virtual local FOX channel number |
+| `TABLOSYNC_TVE_FOX_NAME` | `Fox` | Display name for the local FOX channel |
 | `TABLOSYNC_TVE_TUNER_COUNT` | `1` | Concurrent local stream slots; does not override provider limits |
 | `TABLOSYNC_TVE_AUTH_UI` | `true` | Set `false` after setup to disable activation endpoints |
 | `TABLOSYNC_TVE_FFMPEG_PATH` | `ffmpeg` | Legacy setting; the TVE reader now uses bundled PyAV libraries |

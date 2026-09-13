@@ -1,4 +1,4 @@
-"""FOX Sports TV Everywhere authentication and BTN playback access."""
+"""FOX Sports TV Everywhere authentication and playback access."""
 
 from __future__ import annotations
 
@@ -191,7 +191,13 @@ class FoxClient:
             self._save_state()
             return self._activation_status_locked()
 
-    async def playback_url(self) -> str:
+    async def playback_url(
+        self,
+        *,
+        callsigns: str = "BTN,BTN-DIGITAL",
+        primary_call_sign: str = "BTN",
+        channel_name: str = "BTN",
+    ) -> str:
         async with self._lock:
             if not self.authorized:
                 raise FoxAuthenticationRequired(
@@ -212,7 +218,11 @@ class FoxClient:
             if not platform_location:
                 raise FoxError("FOX did not return a playback region")
 
-            listing = await self._current_btn_listing_locked()
+            listing = await self._current_listing_locked(
+                callsigns=callsigns,
+                primary_call_sign=primary_call_sign,
+                channel_name=channel_name,
+            )
             request = {
                 "asset": {"id": listing["entity_id"]},
                 "stream": {"type": "live"},
@@ -243,12 +253,12 @@ class FoxClient:
                     "Referer": "https://www.foxsports.com/",
                 },
             )
-            payload = self._json_response(response, "FOX rejected BTN playback")
+            payload = self._json_response(response, f"FOX rejected {channel_name} playback")
             playback_url = payload.get("stream", {}).get("playbackUrl")
             if not isinstance(playback_url, str) or not playback_url.startswith("https://"):
-                raise FoxError("FOX did not return a BTN playback URL")
+                raise FoxError(f"FOX did not return a {channel_name} playback URL")
             if ".m3u8" not in playback_url:
-                raise FoxProtectedStream("FOX returned a non-HLS protected BTN stream")
+                raise FoxProtectedStream(f"FOX returned a non-HLS protected {channel_name} stream")
 
             await self._check_manifest(playback_url, seen=set())
             return playback_url
@@ -286,13 +296,19 @@ class FoxClient:
         for child in children:
             await self._check_manifest(child, seen=seen, depth=depth + 1)
 
-    async def _current_btn_listing_locked(self) -> dict[str, Any]:
+    async def _current_listing_locked(
+        self,
+        *,
+        callsigns: str,
+        primary_call_sign: str,
+        channel_name: str,
+    ) -> dict[str, Any]:
         now = int(time.time())
         response = await self._request(
             "GET",
             "https://api.fox.com/fs/product/curated/v1/sporting/keystone/detail/by_filters",
             params={
-                "callsign": "BTN,BTN-DIGITAL",
+                "callsign": callsigns,
                 "start_date": now - 60,
                 "end_date": now + 300,
                 "size": 10,
@@ -300,11 +316,11 @@ class FoxClient:
             },
             headers={"x-fox-apikey": FOX_API_KEY},
         )
-        payload = self._json_response(response, "FOX could not load the BTN schedule")
+        payload = self._json_response(response, f"FOX could not load the {channel_name} schedule")
         listings = payload.get("data", {}).get("listings", {}).get("items") or []
-        candidates = [item for item in listings if item.get("call_sign") == "BTN"]
+        candidates = [item for item in listings if item.get("call_sign") == primary_call_sign]
         if not candidates:
-            raise FoxError("FOX returned no current BTN listing")
+            raise FoxError(f"FOX returned no current {channel_name} listing")
 
         current_time = datetime.now(UTC)
         for item in candidates:
@@ -315,7 +331,7 @@ class FoxClient:
                 continue
             if start <= current_time < end:
                 return item
-        raise FoxError("FOX returned no currently airing BTN program")
+        raise FoxError(f"FOX returned no currently airing {channel_name} program")
 
     async def _anonymous_login(self) -> FoxAuthState:
         device_id = str(uuid.uuid4())
@@ -523,12 +539,12 @@ class FoxClient:
 
 
 class FoxBridge:
-    """Expose Big Ten Network as one virtual cable channel."""
+    """Expose authorized FOX TV Everywhere streams as virtual cable channels."""
 
     def __init__(self, settings: TVESettings, client: FoxClient | None = None) -> None:
         self.settings = settings
         self.client = client or FoxClient(settings.state_file)
-        self._channel = TunerChannel(
+        btn = TunerChannel(
             identifier="fox-btn",
             call_sign="BTN",
             major=0,
@@ -537,6 +553,24 @@ class FoxBridge:
             kind="cable",
             guide_number=settings.btn_guide_number,
         )
+        self._channels: dict[str, tuple[TunerChannel, str, str]] = {
+            btn.identifier: (btn, "BTN,BTN-DIGITAL", "BTN")
+        }
+        if settings.fox_call_sign:
+            local_fox = TunerChannel(
+                identifier="fox-local",
+                call_sign=settings.fox_call_sign,
+                major=0,
+                minor=0,
+                network=settings.fox_name,
+                kind="cable",
+                guide_number=settings.fox_guide_number,
+            )
+            self._channels[local_fox.identifier] = (
+                local_fox,
+                settings.fox_call_sign,
+                settings.fox_call_sign,
+            )
 
     @property
     def ready(self) -> bool:
@@ -562,12 +596,20 @@ class FoxBridge:
 
     async def channels(self, *, force: bool = False) -> list[TunerChannel]:
         del force
-        return [self._channel]
+        return [entry[0] for entry in self._channels.values()]
 
     async def watch(self, identifier: str) -> SourceStream:
-        if identifier != self._channel.identifier:
+        entry = self._channels.get(identifier)
+        if entry is None:
             raise FoxError("Unknown channel")
-        return SourceStream(await self.client.playback_url())
+        channel, callsigns, primary_call_sign = entry
+        return SourceStream(
+            await self.client.playback_url(
+                callsigns=callsigns,
+                primary_call_sign=primary_call_sign,
+                channel_name=channel.network,
+            )
+        )
 
     async def start_activation(self) -> ActivationStatus:
         return await self.client.start_activation()

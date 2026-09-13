@@ -11,10 +11,12 @@ import pytest
 from tablosync.fox import (
     FOX_PREVIEW_ID,
     FoxAuthenticationRequired,
+    FoxBridge,
     FoxClient,
     FoxError,
     FoxProtectedStream,
 )
+from tablosync.tve_config import TVESettings
 
 
 def auth_payload(*, provider: str = "", device_id: str = "device-1") -> dict[str, object]:
@@ -150,6 +152,103 @@ def test_btn_playback_uses_current_listing_and_clear_hls(tmp_path) -> None:
 
     asyncio.run(exercise())
     assert observed["asset"] == {"id": "BTN-program-123"}
+
+
+def test_local_fox_playback_uses_configured_affiliate(tmp_path) -> None:
+    state_file = tmp_path / "fox-auth.json"
+    state_file.write_text(json.dumps(saved_state(provider="Comcast_SSO")))
+    observed: dict[str, object] = {}
+    now = datetime.now(UTC)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/locator/v1/location":
+            return httpx.Response(
+                200,
+                json={},
+                headers={"x-platform-location": "encoded-location"},
+                request=request,
+            )
+        if request.url.path.endswith("/detail/by_filters"):
+            assert request.url.params["callsign"] == "WYFX-LD"
+            return httpx.Response(
+                200,
+                json={
+                    "data": {
+                        "listings": {
+                            "items": [
+                                {
+                                    "entity_id": "WYFX-program-123",
+                                    "call_sign": "WYFX-LD",
+                                    "start_time": (now - timedelta(minutes=5)).isoformat(),
+                                    "end_time": (now + timedelta(minutes=55)).isoformat(),
+                                }
+                            ]
+                        }
+                    }
+                },
+                request=request,
+            )
+        if request.url.path == "/sports/v3.0/watchlive":
+            observed.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={"stream": {"playbackUrl": "https://video.example/fox/index.m3u8"}},
+                request=request,
+            )
+        if request.url.host == "video.example":
+            return httpx.Response(200, text="#EXTM3U\n", request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    async def exercise() -> None:
+        client = FoxClient(state_file, transport=httpx.MockTransport(handler))
+        await client.initialize()
+        assert (
+            await client.playback_url(
+                callsigns="WYFX-LD",
+                primary_call_sign="WYFX-LD",
+                channel_name="Fox Youngstown",
+            )
+            == "https://video.example/fox/index.m3u8"
+        )
+        await client.close()
+
+    asyncio.run(exercise())
+    assert observed["asset"] == {"id": "WYFX-program-123"}
+
+
+def test_bridge_exposes_optional_local_fox_channel(tmp_path) -> None:
+    class FakeClient:
+        ready = True
+        authorized = True
+
+        async def playback_url(self, **kwargs) -> str:
+            assert kwargs == {
+                "callsigns": "WYFX-LD",
+                "primary_call_sign": "WYFX-LD",
+                "channel_name": "Fox Youngstown",
+            }
+            return "https://video.example/fox/index.m3u8"
+
+    bridge = FoxBridge(
+        TVESettings(
+            state_file=tmp_path / "unused.json",
+            fox_call_sign="WYFX-LD",
+            fox_guide_number="6101",
+            fox_name="Fox Youngstown",
+        ),
+        client=FakeClient(),
+    )
+
+    async def exercise() -> None:
+        channels = await bridge.channels()
+        assert [(channel.identifier, channel.guide_number) for channel in channels] == [
+            ("fox-btn", "6100"),
+            ("fox-local", "6101"),
+        ]
+        source = await bridge.watch("fox-local")
+        assert source.playlist_url == "https://video.example/fox/index.m3u8"
+
+    asyncio.run(exercise())
 
 
 def test_drm_manifest_is_refused(tmp_path) -> None:

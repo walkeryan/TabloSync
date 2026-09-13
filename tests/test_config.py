@@ -47,3 +47,15 @@ def test_tve_guide_number_must_be_numeric(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("TABLOSYNC_TVE_BTN_GUIDE_NUMBER", "BTN")
     with pytest.raises(ConfigurationError, match="GUIDE_NUMBER"):
         TVESettings.from_env()
+
+
+def test_tve_optional_local_fox_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TABLOSYNC_TVE_FOX_CALL_SIGN", "WYFX-LD")
+    monkeypatch.setenv("TABLOSYNC_TVE_FOX_GUIDE_NUMBER", "6101")
+    monkeypatch.setenv("TABLOSYNC_TVE_FOX_NAME", "Fox Youngstown")
+
+    settings = TVESettings.from_env()
+
+    assert settings.fox_call_sign == "WYFX-LD"
+    assert settings.fox_guide_number == "6101"
+    assert settings.fox_name == "Fox Youngstown"
